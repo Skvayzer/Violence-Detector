@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,6 +11,10 @@ from keras.metrics import binary_accuracy
 
 ## LOAD THE DATA HERE
 
+path = './fight_train.mp4'
+video_capture = cv2.VideoCapture(path)  # changing paths
+
+X_train =
 
 model=Sequential()
 

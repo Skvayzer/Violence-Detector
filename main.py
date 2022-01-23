@@ -6,6 +6,7 @@ import warnings
 from deepsort import nn_matching
 from deepsort.detection import Detection
 from deepsort.tracker import Tracker
+from tools.visualize import skeleton
 from training.data_preprocessing import generate_angles, batch
 from yolov5 import YOLOv5
 
@@ -71,21 +72,25 @@ writeVideo_flag = True
 path = './fight_train.mp4'
 video_capture = cv2.VideoCapture(path)  # changing paths
 
+size = (640, 360)
+# Define the codec and create VideoWriter object
+original_w = int(video_capture.get(3))
+original_h = int(video_capture.get(4))
+original_size = (original_w, original_h)
+
 if writeVideo_flag:
-    # Define the codec and create VideoWriter object
-    # w = int(video_capture.get(3))
-    # h = int(video_capture.get(4))
-    w = 640
-    h = 480
     fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    out = cv2.VideoWriter(path + '_out.avi', fourcc, 6, (w, h))
+    out = cv2.VideoWriter(path + '_out.avi', fourcc, 6, (original_w, original_h))
 
 frame_index = 0
 person_TS = {}
 count = 0
 fps = 0.0
 labels = {}
+used_frames_num = 0
 while True:
+    if frame_index % 3 == 0:
+        labels = {}
     ret, frame = video_capture.read()  # frame shape 640*480*3
     # print(ret)
 
@@ -95,13 +100,17 @@ while True:
         print('SKIPPED {} FRAME'.format(count))
         count += 1
     else:
+        used_frames_num+=1
+        # if used_frames_num % 10 =
         t1 = time.time()
-        frame = cv2.resize(frame, (640, 480))
+        original_frame = frame
+        frame = cv2.resize(frame, (size[0], size[1]))
         image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
         findings = yolo.predict(image)
         # print("BOXES", boxs)
         findings = findings.pandas().xyxy[0]
         findings = findings[findings["class"] == 0]
+        print("FINDS", findings)
         boxes = []
         for index, box in findings.iterrows():
             x=int(box["xmin"])
@@ -110,7 +119,7 @@ while True:
             h=int(box["ymax"]-y)
             boxes.append([x,y,w,h])
 
-        print(boxes)
+        print("BOXES", boxes)
 
         features = encoder(frame, boxes)
         # score to 1.0 here.
@@ -149,33 +158,31 @@ while True:
 
             if track.track_id not in labels.keys():
                 labels[track.track_id] = 0
-            # skeleton(frame, person_dict)
-            print(person_TS)
+            original_frame = skeleton(original_frame, person_dict, original_size[0]/size[0], original_size[1]/size[1])
             # print(person_dict)
-            if not labels[track.track_id] and 'person_' + str(
+            if 'person_' + str(
                     track.track_id) in person_TS.keys():  # If not violent previously
                 if len(person_TS['person_' + str(track.track_id)]) >= 6:
                     temp = []
                     for j in person_TS['person_' + str(track.track_id)][-6:]:
                         temp.append(generate_angles(j))
-                        print(j)
-                        print(temp[-1])
                     angles = batch(temp)
-                    target = int(np.round(model_ts.predict(angles)))
-                    labels[track.track_id] = target
+                    target = model_ts.predict(angles)
+                    print("TARGET", target)
+                    labels[track.track_id] += target
 
-            if labels[track.track_id]:
+            if labels[track.track_id] >= 0.8:
                 color = (0, 0, 255)
             else:
                 color = (0, 255, 0)
 
-            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 1)
+            cv2.rectangle(original_frame, (int(bbox[0] * (original_size[0] / size[0])), int(bbox[1] * (original_size[1] / size[1]))), (int(bbox[2] * (original_size[0] / size[0])), int(bbox[3] * (original_size[1] / size[1]))), color, 2)
 
         frame_index += 1
 
         if writeVideo_flag:
             # Saving frame
-            out.write(frame)
+            out.write(original_frame)
 
         fps = (fps + (1. / (time.time() - t1))) / 2
         print("fps= %f" % (fps))
