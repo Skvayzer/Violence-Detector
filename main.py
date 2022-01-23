@@ -72,6 +72,8 @@ writeVideo_flag = True
 path = './fight_train.mp4'
 video_capture = cv2.VideoCapture(path)  # changing paths
 
+video_capture.set(cv2.CAP_PROP_POS_FRAMES, 240*950)
+
 size = (640, 360)
 # Define the codec and create VideoWriter object
 original_w = int(video_capture.get(3))
@@ -88,9 +90,19 @@ count = 0
 fps = 0.0
 labels = {}
 used_frames_num = 0
+fight_score = 0
 while True:
-    if frame_index % 3 == 0:
-        labels = {}
+    # if frame_index % 5 == 0:
+    #     if frame_index % 20 != 0:
+    #         for key in labels.keys():
+    #             if labels[key] < 5:
+    #                 labels[key] = 0
+    #     else:
+    #         for key in labels.keys():
+    #             if labels[key] > 5:
+    #                 fight_score += 1
+    #         labels = {}
+
     ret, frame = video_capture.read()  # frame shape 640*480*3
     # print(ret)
 
@@ -120,7 +132,6 @@ while True:
             boxes.append([x,y,w,h])
 
         print("BOXES", boxes)
-
         features = encoder(frame, boxes)
         # score to 1.0 here.
         detections = [Detection(bbox, 1.0, feature) for bbox, feature in zip(boxes, features)]
@@ -160,21 +171,24 @@ while True:
                 labels[track.track_id] = 0
             original_frame = skeleton(original_frame, person_dict, original_size[0]/size[0], original_size[1]/size[1])
             # print(person_dict)
-            if 'person_' + str(
-                    track.track_id) in person_TS.keys():  # If not violent previously
+            if not labels[track.track_id] and 'person_' + str(track.track_id) in person_TS.keys():  # If not violent previously
                 if len(person_TS['person_' + str(track.track_id)]) >= 6:
                     temp = []
                     for j in person_TS['person_' + str(track.track_id)][-6:]:
                         temp.append(generate_angles(j))
                     angles = batch(temp)
-                    target = model_ts.predict(angles)
+                    # target = model_ts.predict(angles)
+                    target=model_ts.predict(angles)
                     print("TARGET", target)
-                    labels[track.track_id] += target
-
-            if labels[track.track_id] >= 0.8:
-                color = (0, 0, 255)
-            else:
+                    labels[track.track_id] = int(np.round(target))
+            if len(boxes) < 2 or not labels[track.track_id]:
                 color = (0, 255, 0)
+                with open('output.txt', 'a') as file:
+                    file.write(str(count) + " " + str(count+1) + str(track.track_id) + " 0" + "\n")
+            else:
+                color = (0, 0, 255)
+                with open('output.txt', 'a') as file:
+                    file.write(str(count) + " " + str(count+1) + str(track.track_id) + " 1" + "\n")
 
             cv2.rectangle(original_frame, (int(bbox[0] * (original_size[0] / size[0])), int(bbox[1] * (original_size[1] / size[1]))), (int(bbox[2] * (original_size[0] / size[0])), int(bbox[3] * (original_size[1] / size[1]))), color, 2)
 
@@ -190,6 +204,9 @@ while True:
         count += 1
         t2 = time.time()
         print("PASSED TIME ", t2 - t1)
+        # if count % (240*20) == 0 and count != 0:
+        #     with open('output.txt', 'a') as file:
+        #         file.write(str(count//240 - 20) + " " + str(count//240) + " 1" if fight_score >= 1 else " 0" + "\n")
 
 video_capture.release()
 if writeVideo_flag:

@@ -14,7 +14,6 @@ from keras.metrics import binary_accuracy
 path = './fight_train.mp4'
 video_capture = cv2.VideoCapture(path)  # changing paths
 
-X_train =
 
 model=Sequential()
 
