@@ -29,7 +29,7 @@ from PIL import Image
 from keras.models import load_model
 
 import tensorflow as tf
-from models.openpose_model import pose_detection_model
+from helpmodels.openpose_model import pose_detection_model
 
 import yolov5
 
